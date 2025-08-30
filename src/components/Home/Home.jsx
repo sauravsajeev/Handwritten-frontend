@@ -266,9 +266,18 @@ function Home() {
     }
   }, [pages, currentPage, results, showLines])
 
-  useEffect(() => {
+useEffect(() => {
+  const img = imgRef.current
+  if (!img) return
+
+  // If image already loaded, draw immediately
+  if (img.complete) {
     drawBoxes()
-  }, [drawBoxes])
+  } else {
+    // Otherwise, wait for load
+    img.onload = drawBoxes()
+  }
+}, [drawBoxes,results, pages, currentPage, showLines])
   //saves User Logins
   useEffect(() => {
     const savedUser = localStorage.getItem("user")
