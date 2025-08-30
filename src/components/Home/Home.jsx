@@ -270,14 +270,12 @@ useEffect(() => {
   const img = imgRef.current
   if (!img) return
 
-  // If image already loaded, draw immediately
   if (img.complete) {
     drawBoxes()
   } else {
-    // Otherwise, wait for load
-    img.onload = drawBoxes()
+    img.onload = () => drawBoxes() // wrap in arrow function
   }
-}, [drawBoxes,results, pages, currentPage, showLines])
+}, [drawBoxes, results, pages, currentPage, showLines])
   //saves User Logins
   useEffect(() => {
     const savedUser = localStorage.getItem("user")
