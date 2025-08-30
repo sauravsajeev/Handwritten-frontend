@@ -139,3 +139,12 @@ export function unregister() {
       });
   }
 }
+
+register({
+  onUpdate: (registration) => {
+    console.log('New content is available:', registration);
+  },
+  onSuccess: (registration) => {
+    console.log('Service worker registered successfully:', registration);
+  }
+});

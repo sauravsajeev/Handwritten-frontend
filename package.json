@@ -14,6 +14,8 @@
     "@testing-library/react": "^11.2.7",
     "@testing-library/user-event": "^12.8.3",
     "axios": "^1.11.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
     "quill": "^2.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -31,9 +33,7 @@
     "workbox-range-requests": "^5.1.4",
     "workbox-routing": "^5.1.4",
     "workbox-strategies": "^5.1.4",
-    "workbox-streams": "^5.1.4",
-    "jspdf": "^2.5.1",
-    "html2canvas": "^1.4.1"
+    "workbox-streams": "^5.1.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
