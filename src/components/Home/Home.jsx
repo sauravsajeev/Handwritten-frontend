@@ -1,5 +1,3 @@
-
-
 "use client"
 
 // src/components/Home.js
@@ -82,7 +80,7 @@ function Home() {
   }
   useEffect(() => {
     console.log("[v0] Initializing socket connection of home")
-    const s =  io(import.meta.env.VITE_SERVER_URL)
+    const s = io(import.meta.env.VITE_SERVER_URL)
     setSocket(s)
 
     return () => {
@@ -104,27 +102,26 @@ function Home() {
     // For now, we'll just close the sidebar
   }
   const loadSavedDoc = () => {
-    if (socket == null){
+    if (socket == null) {
       return
     }
     const savedUser = JSON.parse(localStorage.getItem("user"))
-  
-    socket.once("all-documents",(documents) =>{
+
+    socket.once("all-documents", (documents) => {
       setSavedDocuments(documents)
       console.log("[v0] Fetched documents:", documents)
     })
-    
-    if (savedUser?.google_id){
-    console.log("Trying to Fetch documents ")
-    socket.emit("find-all", savedUser?.google_id)
+
+    if (savedUser?.google_id) {
+      console.log("Trying to Fetch documents ")
+      socket.emit("find-all", savedUser?.google_id)
     }
   }
   const deleteSavedDoc = (id) => {
-    if (socket == null){
+    if (socket == null) {
       return
     }
     socket.emit("delete-document", id)
-
   }
   const handleStartCrop = () => {
     setCroppingEnabled(true)
@@ -184,14 +181,13 @@ function Home() {
       } else {
         console.log("No user found")
       }
-      if  (showHandwritten){
+      if (showHandwritten) {
         form.append("handwritten", "true")
-      }
-      else{
+      } else {
         form.append("handwritten", "false")
       }
 
-      const apiRes = await fetch(import.meta.env.VITE_OCR_URL+"/convert", {
+      const apiRes = await fetch(import.meta.env.VITE_OCR_URL + "/convert", {
         method: "POST",
         body: form,
       })
@@ -212,7 +208,7 @@ function Home() {
         // Single image or single-page PDF
         setPages([])
         setResults(data)
-        if (data.preview_url) setImgSrc(import.meta.env.VITE_OCR_URL+data.preview_url)
+        if (data.preview_url) setImgSrc(import.meta.env.VITE_OCR_URL + data.preview_url)
         const sentences = data?.results?.sentences || []
         setOutText(sentences.length ? sentences.map((s) => s.corrected_text).join("\n") : "No Text Found")
       }
@@ -225,57 +221,84 @@ function Home() {
   }
 
   // Decide which image to display
-  const currentImageSrc = imgSrc ?? (pages.length > 0 ? import.meta.env.VITE_OCR_URL+pages[currentPage].preview_url : null)
+  const currentImageSrc =
+    imgSrc ?? (pages.length > 0 ? import.meta.env.VITE_OCR_URL + pages[currentPage].preview_url : null)
 
   // Draw bounding boxes for lines
   const drawBoxes = useCallback(() => {
-    const img = imgRef.current
-    const canvas = canvasRef.current
+    const img = imgRef?.current
+    const canvas = canvasRef?.current
     if (!img || !canvas) return
 
+    // Resolve line data and original image dimensions (fallback to natural sizes in production)
     let lineData = []
-    let imgW = null,
-      imgH = null
+    let imgW = null
+    let imgH = null
 
-    if (pages.length > 0) {
+    // Depending on your state structure; keep your original precedence but add fallbacks
+    if (Array.isArray(pages) && pages.length > 0 && typeof currentPage === "number") {
       const p = pages[currentPage]
-      lineData = p?.results?.lines || []
-      imgW = p?.image_w
-      imgH = p?.image_h
+      const pResults = p?.results
+      lineData = pResults?.lines || p?.lines || []
+      imgW = p?.image_w || pResults?.image_w || img.naturalWidth
+      imgH = p?.image_h || pResults?.image_h || img.naturalHeight
     } else if (results) {
-      lineData = results?.results?.lines || []
-      imgW = results?.image_w
-      imgH = results?.image_h
+      const r = results
+      const rResults = r?.results
+      lineData = rResults?.lines || r?.lines || []
+      imgW = r?.image_w || rResults?.image_w || img.naturalWidth
+      imgH = r?.image_h || rResults?.image_h || img.naturalHeight
     }
 
+    // Display size of the rendered image element
+    const displayW = img.width
+    const displayH = img.height
+
+    // HiDPI-safe canvas sizing
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
+    canvas.width = Math.max(1, Math.floor(displayW * dpr))
+    canvas.height = Math.max(1, Math.floor(displayH * dpr))
+    canvas.style.width = displayW + "px"
+    canvas.style.height = displayH + "px"
+
     const ctx = canvas.getContext("2d")
-    const rect = { width: img.width, height: img.height }
-    canvas.width = rect.width
-    canvas.height = rect.height
+    if (!ctx) return
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, displayW, displayH)
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    // Guard conditions with better visibility
+    if (!showLines || !Array.isArray(lineData) || !imgW || !imgH) {
+      // console.log("[v0] drawBoxes skipped", { showLines, hasLines: Array.isArray(lineData), imgW, imgH })
+      return
+    }
 
-    if (!showLines || !Array.isArray(lineData) || !imgW || !imgH) return
+    // Scale factors from original coords to displayed coords
+    const rx = displayW / imgW
+    const ry = displayH / imgH
 
-    const rx = rect.width / imgW
-    const ry = rect.height / imgH
     ctx.lineWidth = 2
     ctx.strokeStyle = "#646cff"
+
     for (const b of lineData) {
-      ctx.strokeRect(b.x * rx, b.y * ry, b.w * rx, b.h * ry)
+      // Expect b: { x, y, w, h } in original pixel coords
+      const x = b.x * rx
+      const y = b.y * ry
+      const w = b.w * rx
+      const h = b.h * ry
+      ctx.strokeRect(x, y, w, h)
     }
   }, [pages, currentPage, results, showLines])
 
-useEffect(() => {
-  const img = imgRef.current
-  if (!img) return
+  useEffect(() => {
+    const img = imgRef.current
+    if (!img) return
 
-  if (img.complete) {
-    drawBoxes()
-  } else {
-    img.onload = () => drawBoxes() // wrap in arrow function
-  }
-}, [drawBoxes, results, pages, currentPage, showLines])
+    if (img.complete) {
+      drawBoxes()
+    } else {
+      img.onload = () => drawBoxes() // wrap in arrow function
+    }
+  }, [drawBoxes, results, pages, currentPage, showLines])
   //saves User Logins
   useEffect(() => {
     const savedUser = localStorage.getItem("user")
@@ -283,16 +306,17 @@ useEffect(() => {
       setUser(JSON.parse(savedUser))
     }
   }, [])
-  useEffect(() => { //delete files on refrest
-  const handleUnload = async () => {
-    const savedUser = JSON.parse(localStorage.getItem("user"))
-    if (savedUser?.google_id) {
-      navigator.sendBeacon(import.meta.env.VITE_OCR_URL+"/clear", JSON.stringify({ user_id: savedUser.google_id }))
+  useEffect(() => {
+    //delete files on refrest
+    const handleUnload = async () => {
+      const savedUser = JSON.parse(localStorage.getItem("user"))
+      if (savedUser?.google_id) {
+        navigator.sendBeacon(import.meta.env.VITE_OCR_URL + "/clear", JSON.stringify({ user_id: savedUser.google_id }))
+      }
     }
-  }
-  window.addEventListener("beforeunload", handleUnload)
-  return () => window.removeEventListener("beforeunload", handleUnload)
-}, [])
+    window.addEventListener("beforeunload", handleUnload)
+    return () => window.removeEventListener("beforeunload", handleUnload)
+  }, [])
 
   // Update extracted text when switching PDF page
   useEffect(() => {
@@ -348,283 +372,268 @@ useEffect(() => {
   return (
     <div className="HomeBase">
       {!user ? (
-        <>
-          <div className="signinp">
-            <GoogleLogin setUser={setUser} />
-          </div>
-        </>
+        <div className="signinp">
+          <GoogleLogin setUser={setUser} />
+        </div>
       ) : (
-        <> 
+        <div>
           <Sidebar
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
             savedDocuments={savedDocuments}
             onOpenDocument={openDocument}
-            deleteSavedDoc = {deleteSavedDoc}
+            deleteSavedDoc={deleteSavedDoc}
           />
-          {
-           
+          <div className="Homie">
+            <div className="Logout">
+              <img
+                src="/images/logo.gif" // put your GIF in public/images/
+                alt="Handwritten Logo Animation"
+                style={{ marginTop: 5, cursor: "pointer" }}
+                className="h-[50px] lg:h-[100px]"
+                onClick={toggleSidebar}
+              />
+              <button
+                onClick={async () => {
+                  const savedUser = JSON.parse(localStorage.getItem("user"))
+                  if (savedUser?.google_id) {
+                    await fetch(import.meta.env.VITE_OCR_URL + "/clear", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ user_id: savedUser.google_id }),
+                    })
+                  }
+                  localStorage.removeItem("user") // clear storage
+                  setUser(null)
+                }}
+                style={{ padding: "1px 12px" }}
+                className="w-[40px] h-[15px] lg:w-[100px] lg:h-[30px]"
+              >
+                Logout
+              </button>
+            </div>
+            <div className="Home" style={{ margin: 24 }}>
+              <div className={`right ${file || imgSrc ? "slide-right" : ""}`}>
+                <h3>
+                  Welcome <i>{user.name.split(" ")[0]}</i>
+                </h3>
 
-            <div className="Homie">
-
-              <div className="Logout">
-                <img
-                  src="/images/logo.gif" // put your GIF in public/images/
-                  alt="Handwritten Logo Animation"
-                  style={{ marginTop: 5 , cursor: "pointer"}}
-                  className="h-[50px] lg:h-[100px]"
-                  onClick={toggleSidebar}
-                />
-                <button
-                  onClick={async () => {
-                    const savedUser = JSON.parse(localStorage.getItem("user"))
-    if (savedUser?.google_id) {
-      await fetch(import.meta.env.VITE_OCR_URL+"/clear", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: savedUser.google_id }),
-      })
-    }
-                    localStorage.removeItem("user") // clear storage
-                    setUser(null)
-                  }}
-                  style={{ padding: "1px 12px" }}
-                  className = "w-[40px] h-[15px] lg:w-[100px] lg:h-[30px]"
+                <div
+                  className={`OCR ${file || imgSrc ? "s" : ""}`}
+                  style={{ display: "flex", gap: 12, alignItems: "center" }}
                 >
-                  Logout
-                </button>
-              </div>
-              <div className="Home" style={{ margin: 24 }}>
-                
-                {/* <h2>Handwritten OCR</h2> */}
-                <div className={`right ${file || imgSrc ? "slide-right" : ""}`}>
-                  <h3>
-                    Welcome <i>{user.name.split(" ")[0]}</i>
-                  </h3>
-
-                  <div
-                    className={`OCR ${file || imgSrc ? "s" : ""}`}
-                    style={{ display: "flex", gap: 12, alignItems: "center" }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          display: "inline-block",
-                          padding: "8px 16px",
-                          background: loading ? "#9e9e9e" : "#1976d2", // gray when disabled
-                          color: "white",
-                          borderRadius: "4px",
-                          cursor: loading ? "not-allowed" : "pointer",
-                          opacity: loading ? 0.6 : 1,
-                        }}
-                      >
-                        Choose File
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={handleFileChange}
-                          accept="image/*,.pdf"
-                          style={{ display: "none" }}
-                          disabled={loading} // ✅ disable while recognizing
-                        />
-                      </label>
-                      {/* ✅ Show file status */}
-                      {fileStatus && <span style={{ color: "white", marginLeft: 10 }}>{fileStatus}</span>}
-                    </div>
-                    <div>
-                      <button
-                        onClick={handleRecognize}
-                        disabled={(croppingEnabled && !confirmedCrop) || loading || !(imgSrc || pdfFile)}
-                        className={
-                          (croppingEnabled && !confirmedCrop) || loading || !(imgSrc || pdfFile)
-                            ? ""
-                            : "RecognizeButton"
-                        }
-                      >
-                        {loading ? "Extracting..." : "Extract Text"}
-                      </button>
-
-                      {(imgSrc || pdfFile) && (
-                        <button
-                          onClick={async () => {
-    const savedUser = JSON.parse(localStorage.getItem("user"))
-    if (savedUser?.google_id) {
-      await fetch(import.meta.env.VITE_OCR_URL+"/clear", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: savedUser.google_id }),
-      })
-    }
-    resetAll()
-  }}
-                          disabled={loading}
-                          className={loading ? "" : "CancelButton"}
-                          style={{
-                            marginLeft: 10,
-                            padding: "8px 16px",
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                    <label className="inline-flex items-center gap-2 cursor-pointer select-none" style={{ marginTop: 2 }}>
-                        <input type="checkbox"  className="h-4 w-4 rounded border border-border accent-blue-600
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600
-                   disabled:opacity-50 disabled:cursor-not-allowed" checked={showHandwritten} onChange={(e) => setShowHandwritten(e.target.checked)} />
-                        Handwritten
-                      </label>
-                  </div>
-
-                  <div className="OutputSection">
-                    <div>
-                      <h4 style={{ marginTop: 0 }}>Extracted Text</h4>
-                      <textarea
-                        value={outText}
-                        readOnly
-                        style={{ background: "#2c2c2c", width: "100%", height: 200, marginTop: 0 }}
+                  <div>
+                    <label
+                      style={{
+                        display: "inline-block",
+                        padding: "8px 16px",
+                        background: loading ? "#9e9e9e" : "#1976d2", // gray when disabled
+                        color: "white",
+                        borderRadius: "4px",
+                        cursor: loading ? "not-allowed" : "pointer",
+                        opacity: loading ? 0.6 : 1,
+                      }}
+                    >
+                      Choose File
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="image/*,.pdf"
+                        style={{ display: "none" }}
+                        disabled={loading} // ✅ disable while recognizing
                       />
-                    </div>
-                    {outText && outText !== "Processing..." && !outText.startsWith("Error") && (
+                    </label>
+                    {/* ✅ Show file status */}
+                    {fileStatus && <span style={{ color: "white", marginLeft: 10 }}>{fileStatus}</span>}
+                  </div>
+                  <div>
+                    <button
+                      onClick={handleRecognize}
+                      disabled={(croppingEnabled && !confirmedCrop) || loading || !(imgSrc || pdfFile)}
+                      className={
+                        (croppingEnabled && !confirmedCrop) || loading || !(imgSrc || pdfFile) ? "" : "RecognizeButton"
+                      }
+                    >
+                      {loading ? "Extracting..." : "Extract Text"}
+                    </button>
+
+                    {(imgSrc || pdfFile) && (
                       <button
-                        onClick={handleMakePdf}
+                        onClick={async () => {
+                          const savedUser = JSON.parse(localStorage.getItem("user"))
+                          if (savedUser?.google_id) {
+                            await fetch(import.meta.env.VITE_OCR_URL + "/clear", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ user_id: savedUser.google_id }),
+                            })
+                          }
+                          resetAll()
+                        }}
+                        disabled={loading}
+                        className={loading ? "" : "CancelButton"}
                         style={{
-                          marginTop: 16,
+                          marginLeft: 10,
                           padding: "8px 16px",
-                          background: "#646cff",
-                          color: "white",
                         }}
                       >
-                        Make PDF
+                        Cancel
                       </button>
                     )}
                   </div>
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none" style={{ marginTop: 2 }}>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border border-border accent-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      checked={showHandwritten}
+                      onChange={(e) => setShowHandwritten(e.target.checked)}
+                    />
+                    Handwritten
+                  </label>
                 </div>
-                <div className={`left ${file || imgSrc ? "slide-left" : ""}`} style={{ marginLeft: 40 }}>
-                  {/* PDF navigation */}
-                  {pages.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <button onClick={() => setCurrentPage((p) => Math.max(p - 1, 0))} disabled={currentPage === 0}>
-                        Prev Page
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage((p) => Math.min(p + 1, pages.length - 1))}
-                        disabled={currentPage === pages.length - 1}
-                        style={{ marginLeft: 8 }}
-                      >
-                        Next Page
-                      </button>
-                      <span style={{ marginLeft: 12 }}>
-                        Page {currentPage + 1} / {pages.length}
-                      </span>
-                    </div>
-                  )}
 
-                  {/* IMAGE or PDF page preview */}
-                  {currentImageSrc && (
-                    <div className="Borderstage">
-                      <div className="stage">
-                        <img
-                          ref={imgRef}
-                          src={currentImageSrc || "/placeholder.svg"}
-                          alt="preview"
-                          style={{ width: 400, display: "block" }}
-                          onLoad={drawBoxes}
-                        />
+                <div className="OutputSection">
+                  <div>
+                    <h4 style={{ marginTop: 0 }}>Extracted Text</h4>
+                    <textarea
+                      value={outText}
+                      readOnly
+                      style={{ background: "#2c2c2c", width: "100%", height: 200, marginTop: 0 }}
+                    />
+                  </div>
+                  {outText && outText !== "Processing..." && !outText.startsWith("Error") && (
+                    <button
+                      onClick={handleMakePdf}
+                      style={{
+                        marginTop: 16,
+                        padding: "8px 16px",
+                        background: "#646cff",
+                        color: "white",
+                      }}
+                    >
+                      Make PDF
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className={`left ${file || imgSrc ? "slide-left" : ""}`} style={{ marginLeft: 40 }}>
+                {/* PDF navigation */}
+                {pages.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <button onClick={() => setCurrentPage((p) => Math.max(p - 1, 0))} disabled={currentPage === 0}>
+                      Prev Page
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(p + 1, pages.length - 1))}
+                      disabled={currentPage === pages.length - 1}
+                      style={{ marginLeft: 8 }}
+                    >
+                      Next Page
+                    </button>
+                    <span style={{ marginLeft: 12 }}>
+                      Page {currentPage + 1} / {pages.length}
+                    </span>
+                  </div>
+                )}
+
+                {/* IMAGE or PDF page preview */}
+                {currentImageSrc && (
+                  <div className="Borderstage">
+                    <div className="stage" style={{ position: "relative", width: 400 }}>
+                      {/* Ensure image uses crossOrigin for CORS-safe cropping and triggers draw on load */}
+                      <img
+                        ref={imgRef}
+                        src={
+                          currentImageSrc || "/placeholder.svg?height=400&width=400&query=ocr%20preview%20placeholder"
+                        }
+                        alt="preview"
+                        style={{ width: "100%", display: "block" }}
+                        crossOrigin="anonymous"
+                        onLoad={drawBoxes}
+                      />
+                      {/* Boxes canvas overlay */}
+                      <canvas
+                        ref={canvasRef}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                          pointerEvents: "none",
+                        }}
+                        aria-hidden="true"
+                      />
+                      {/* Optional interactive overlay for cropping; keep your own handlers/conditions */}
+                      {imgSrc && croppingEnabled && (
                         <canvas
-                          ref={canvasRef}
+                          ref={overlayRef}
                           style={{
                             position: "absolute",
-                            top: 0,
-                            left: "50%", // start at horizontal center
-                            transform: "translateX(-50%)", // shift back by half width
-                            width: 400,
-                            height: "auto",
-                            pointerEvents: "none",
+                            inset: 0,
+                            width: "100%",
+                            height: "100%",
+                            cursor: "crosshair",
                           }}
+                          onMouseDown={handleMouseDown}
+                          onMouseMove={handleMouseMove}
+                          onMouseUp={handleMouseUp}
                         />
-                        {/* crop overlay (only for images) */}
-                        {imgSrc && croppingEnabled && (
-                          <canvas
-                            ref={overlayRef}
-                            style={{
-                              position: "absolute",
-                              top: 0,
-                              left: "50%",
-                              transform: "translateX(-50%)",
-                              width: 400,
-                              height: imgRef.current?.height || "auto",
-                              cursor: "crosshair",
-                            }}
-                            onMouseDown={handleMouseDown}
-                            onMouseMove={handleMouseMove}
-                            onMouseUp={handleMouseUp}
-                          />
-                        )}
-                        {crop && croppingEnabled && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              border: "2px solid red",
-                              top: crop.y,
-                              left: `calc(50% - 200px + ${crop.x}px)`, // center offset for 600px
-                              width: crop.w,
-                              height: crop.h,
-                              pointerEvents: "none",
-                            }}
-                          />
-                        )}
-                      </div>
+                      )}
                     </div>
-                  )}
-
-                  {/* Crop controls */}
-                  {/* Crop controls */}
-                  {/* Crop controls */}
-                  <div className="croptools">
-                    {(file && outText && outText !== "Processing..." && !outText.startsWith("Error") || imgSrc)  && (
-                      <label className="inline-flex items-center gap-2 cursor-pointer select-none" style={{ marginTop: 15, marginRight: 20 }}>
-                        <input type="checkbox" className="h-4 w-4 rounded border border-border accent-blue-600
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600
-                   disabled:opacity-50 disabled:cursor-not-allowed" checked={showLines} onChange={(e) => setShowLines(e.target.checked)} />
-                        Lines
-                      </label>
-                    )}
-                    {imgSrc && !croppingEnabled && !confirmedCrop && !loading && !hasRecognized && (
-                      <button
-                        onClick={handleStartCrop}
-                        className="hidden lg:block"
-                        style={{
-                          marginTop: 10,
-                          background: "#646cff",
-                          color: "white",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Crop
-                      </button>
-                    )}
-                    {imgSrc && croppingEnabled && crop && !loading && (
-                      <button
-                        onClick={handleConfirmCrop}
-                        style={{
-                          marginTop: 10,
-                          background: "green",
-                          color: "white",
-                          display: "block",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Confirm Crop
-                      </button>
-                    )}
                   </div>
-                  {imgSrc && croppingEnabled && <p>Left click & drag through the image to select</p>}
+                )}
+
+                {/* Crop controls */}
+                <div className="croptools">
+                  {((file && outText && outText !== "Processing..." && !outText.startsWith("Error")) || imgSrc) && (
+                    <label
+                      className="inline-flex items-center gap-2 cursor-pointer select-none"
+                      style={{ marginTop: 15, marginRight: 20 }}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border border-border accent-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        checked={showLines}
+                        onChange={(e) => setShowLines(e.target.checked)}
+                      />
+                      Lines
+                    </label>
+                  )}
+                  {imgSrc && !croppingEnabled && !confirmedCrop && !loading && !hasRecognized && (
+                    <button
+                      onClick={handleStartCrop}
+                      className="hidden lg:block"
+                      style={{
+                        marginTop: 10,
+                        background: "#646cff",
+                        color: "white",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Crop
+                    </button>
+                  )}
+                  {imgSrc && croppingEnabled && crop && !loading && (
+                    <button
+                      onClick={handleConfirmCrop}
+                      style={{
+                        marginTop: 10,
+                        background: "green",
+                        color: "white",
+                        display: "block",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Confirm Crop
+                    </button>
+                  )}
                 </div>
+                {imgSrc && croppingEnabled && <p>Left click & drag through the image to select</p>}
               </div>
             </div>
-          }
-        </>
+          </div>
+        </div>
       )}
     </div>
   )
