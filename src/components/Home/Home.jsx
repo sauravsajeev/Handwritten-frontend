@@ -550,7 +550,10 @@ function Home() {
                         alt="preview"
                         style={{ width: "100%", display: "block" }}
                         crossOrigin="anonymous"
-                        onLoad={drawBoxes}
+                        onLoad={() => requestAnimationFrame(() => drawBoxes())}
+                        onError={(e) => {
+                          console.warn("[v0] Preview failed to load:", e.currentTarget.src)
+                        }}
                       />
                       {/* Boxes canvas overlay */}
                       <canvas
