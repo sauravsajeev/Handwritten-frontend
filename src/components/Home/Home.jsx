@@ -229,7 +229,40 @@ function Home() {
     const img = imgRef?.current
     const canvas = canvasRef?.current
     if (!img || !canvas) return
+    // If image hasn't laid out yet, try on next frame
+    const displayW = img.width || img.getBoundingClientRect().width
+    const displayH = img.height || img.getBoundingClientRect().height
+    if (!displayW || !displayH) {
+      if (typeof requestAnimationFrame !== "undefined") {
+        requestAnimationFrame(() => drawBoxes())
+      }
+      return
+    }
 
+    const pickBoxes = (src) => {
+      if (!src) return []
+      const r = src.results ?? src
+      let boxes = r?.lines || src?.lines || r?.boxes || []
+
+      // Try sentences[].bbox variants
+      if ((!boxes || boxes.length === 0) && Array.isArray(r?.sentences)) {
+        boxes = r.sentences.map((s) => s?.bbox || s?.box || s?.boundingBox).filter(Boolean)
+      }
+
+      // Normalize to {x,y,w,h}
+      return (boxes || []).map((b) => {
+        if (Array.isArray(b) && b.length >= 4) {
+          // [x, y, w, h] or [x1, y1, x2, y2]
+          const isXYWH = b[2] > 0 && b[3] > 0
+          return isXYWH ? { x: b[0], y: b[1], w: b[2], h: b[3] } : { x: b[0], y: b[1], w: b[2] - b[0], h: b[3] - b[1] }
+        }
+        const x = b.x ?? b.left ?? 0
+        const y = b.y ?? b.top ?? 0
+        const w = b.w ?? b.width ?? (b.x2 != null ? b.x2 - x : 0)
+        const h = b.h ?? b.height ?? (b.y2 != null ? b.y2 - y : 0)
+        return { x, y, w, h }
+      })
+    }
     // Resolve line data and original image dimensions (fallback to natural sizes in production)
     let lineData = []
     let imgW = null
@@ -239,20 +272,20 @@ function Home() {
     if (Array.isArray(pages) && pages.length > 0 && typeof currentPage === "number") {
       const p = pages[currentPage]
       const pResults = p?.results
-      lineData = pResults?.lines || p?.lines || []
+      lineData = pickBoxes(pResults || p)
       imgW = p?.image_w || pResults?.image_w || img.naturalWidth
       imgH = p?.image_h || pResults?.image_h || img.naturalHeight
     } else if (results) {
       const r = results
       const rResults = r?.results
-      lineData = rResults?.lines || r?.lines || []
+      lineData = pickBoxes(rResults || r)
       imgW = r?.image_w || rResults?.image_w || img.naturalWidth
       imgH = r?.image_h || rResults?.image_h || img.naturalHeight
     }
 
     // Display size of the rendered image element
-    const displayW = img.width
-    const displayH = img.height
+    // const displayW = img.width
+    // const displayH = img.height
 
     // HiDPI-safe canvas sizing
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
@@ -292,13 +325,20 @@ function Home() {
   useEffect(() => {
     const img = imgRef.current
     if (!img) return
+    const handleLoad = () => requestAnimationFrame(() => drawBoxes())
+    img.addEventListener("load", handleLoad)
 
-    if (img.complete) {
-      drawBoxes()
-    } else {
-      img.onload = () => drawBoxes() // wrap in arrow function
+    let resizeObs
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObs = new ResizeObserver(() => drawBoxes())
+      resizeObs.observe(img)
     }
-  }, [drawBoxes, results, pages, currentPage, showLines])
+
+    return () => {
+      img.removeEventListener("load", handleLoad)
+      if (resizeObs) resizeObs.disconnect()
+    }
+  }, [drawBoxes])
   //saves User Logins
   useEffect(() => {
     const savedUser = localStorage.getItem("user")
