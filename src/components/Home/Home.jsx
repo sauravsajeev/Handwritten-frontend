@@ -225,121 +225,46 @@ function Home() {
     imgSrc ?? (pages.length > 0 ? import.meta.env.VITE_OCR_URL + pages[currentPage].preview_url : null)
 
   // Draw bounding boxes for lines
-  const drawBoxes = useCallback(() => {
-    console.log("[v0] drawBoxes called")
-    const img = imgRef?.current
-    const canvas = canvasRef?.current
+   const drawBoxes = useCallback(() => {
+    const img = imgRef.current
+    const canvas = canvasRef.current
     if (!img || !canvas) return
-    // If image hasn't laid out yet, try on next frame
-    const displayW = img.width || img.getBoundingClientRect().width
-    const displayH = img.height || img.getBoundingClientRect().height
-    if (!displayW || !displayH) {
-      if (typeof requestAnimationFrame !== "undefined") {
-        requestAnimationFrame(() => drawBoxes())
-      }
-      return
-    }
 
-    const pickBoxes = (src) => {
-      if (!src) return []
-      const r = src.results ?? src
-      let boxes = r?.lines || src?.lines || r?.boxes || []
-
-      // Try sentences[].bbox variants
-      if ((!boxes || boxes.length === 0) && Array.isArray(r?.sentences)) {
-        boxes = r.sentences.map((s) => s?.bbox || s?.box || s?.boundingBox).filter(Boolean)
-      }
-
-      // Normalize to {x,y,w,h}
-      return (boxes || []).map((b) => {
-        if (Array.isArray(b) && b.length >= 4) {
-          // [x, y, w, h] or [x1, y1, x2, y2]
-          const isXYWH = b[2] > 0 && b[3] > 0
-          return isXYWH ? { x: b[0], y: b[1], w: b[2], h: b[3] } : { x: b[0], y: b[1], w: b[2] - b[0], h: b[3] - b[1] }
-        }
-        const x = b.x ?? b.left ?? 0
-        const y = b.y ?? b.top ?? 0
-        const w = b.w ?? b.width ?? (b.x2 != null ? b.x2 - x : 0)
-        const h = b.h ?? b.height ?? (b.y2 != null ? b.y2 - y : 0)
-        return { x, y, w, h }
-      })
-    }
-    // Resolve line data and original image dimensions (fallback to natural sizes in production)
     let lineData = []
-    let imgW = null
-    let imgH = null
+    let imgW = null,
+      imgH = null
 
-    // Depending on your state structure; keep your original precedence but add fallbacks
-    if (Array.isArray(pages) && pages.length > 0 && typeof currentPage === "number") {
+    if (pages.length > 0) {
       const p = pages[currentPage]
-      const pResults = p?.results
-      lineData = pickBoxes(pResults || p)
-      imgW = p?.image_w || pResults?.image_w || img.naturalWidth
-      imgH = p?.image_h || pResults?.image_h || img.naturalHeight
+      lineData = p?.results?.lines || []
+      imgW = p?.image_w
+      imgH = p?.image_h
     } else if (results) {
-      const r = results
-      const rResults = r?.results
-      lineData = pickBoxes(rResults || r)
-      imgW = r?.image_w || rResults?.image_w || img.naturalWidth
-      imgH = r?.image_h || rResults?.image_h || img.naturalHeight
+      lineData = results?.results?.lines || []
+      imgW = results?.image_w
+      imgH = results?.image_h
     }
-
-    // Display size of the rendered image element
-    // const displayW = img.width
-    // const displayH = img.height
-
-    // HiDPI-safe canvas sizing
-    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
-    canvas.width = Math.max(1, Math.floor(displayW * dpr))
-    canvas.height = Math.max(1, Math.floor(displayH * dpr))
-    canvas.style.width = displayW + "px"
-    canvas.style.height = displayH + "px"
 
     const ctx = canvas.getContext("2d")
-    if (!ctx) return
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, displayW, displayH)
+    const rect = { width: img.width, height: img.height }
+    canvas.width = rect.width
+    canvas.height = rect.height
 
-    // Guard conditions with better visibility
-    if (!showLines || !Array.isArray(lineData) || !imgW || !imgH) {
-      // console.log("[v0] drawBoxes skipped", { showLines, hasLines: Array.isArray(lineData), imgW, imgH })
-      return
-    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Scale factors from original coords to displayed coords
-    const rx = displayW / imgW
-    const ry = displayH / imgH
+    if (!showLines || !Array.isArray(lineData) || !imgW || !imgH) return
 
+    const rx = rect.width / imgW
+    const ry = rect.height / imgH
     ctx.lineWidth = 2
     ctx.strokeStyle = "#646cff"
-
     for (const b of lineData) {
-      // Expect b: { x, y, w, h } in original pixel coords
-      const x = b.x * rx
-      const y = b.y * ry
-      const w = b.w * rx
-      const h = b.h * ry
-      ctx.strokeRect(x, y, w, h)
+      ctx.strokeRect(b.x * rx, b.y * ry, b.w * rx, b.h * ry)
     }
-    console.log("[v0] drawBoxes drew", lineData.length, "boxes")
   }, [pages, currentPage, results, showLines])
 
   useEffect(() => {
-    const img = imgRef.current
-    if (!img) return
-    const handleLoad = () => requestAnimationFrame(() => drawBoxes())
-    img.addEventListener("load", handleLoad)
-
-    let resizeObs
-    if (typeof ResizeObserver !== "undefined") {
-      resizeObs = new ResizeObserver(() => drawBoxes())
-      resizeObs.observe(img)
-    }
-
-    return () => {
-      img.removeEventListener("load", handleLoad)
-      if (resizeObs) resizeObs.disconnect()
-    }
+    drawBoxes()
   }, [drawBoxes])
   
   //saves User Logins
@@ -590,13 +515,9 @@ function Home() {
                         src={
                           currentImageSrc || "/placeholder.svg?height=400&width=400&query=ocr%20preview%20placeholder"
                         }
-                        alt="preview"
-                        style={{ width: "100%", display: "block" }}
-                        crossOrigin="anonymous"
-                        onLoad={() => requestAnimationFrame(() => drawBoxes())}
-                        onError={(e) => {
-                          console.warn("[v0] Preview failed to load:", e.currentTarget.src)
-                        }}
+              alt="preview"
+              style={{ width: 400, display: "block" }}
+              onLoad={drawBoxes}
                       />
                       {/* Boxes canvas overlay */}
                       <canvas
