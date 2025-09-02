@@ -339,6 +339,7 @@ function Home() {
       if (resizeObs) resizeObs.disconnect()
     }
   }, [drawBoxes])
+  
   //saves User Logins
   useEffect(() => {
     const savedUser = localStorage.getItem("user")
