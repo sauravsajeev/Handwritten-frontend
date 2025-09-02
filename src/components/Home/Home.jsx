@@ -193,7 +193,7 @@ function Home() {
       })
 
       const data = await apiRes.json()
-
+      console.log("OCR Response:", data)
       if (data.pages) {
         // Multi-page PDF
         setPages(data.pages)
