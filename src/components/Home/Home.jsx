@@ -226,6 +226,7 @@ function Home() {
 
   // Draw bounding boxes for lines
   const drawBoxes = useCallback(() => {
+    console.log("[v0] drawBoxes called")
     const img = imgRef?.current
     const canvas = canvasRef?.current
     if (!img || !canvas) return
@@ -320,6 +321,7 @@ function Home() {
       const h = b.h * ry
       ctx.strokeRect(x, y, w, h)
     }
+    console.log("[v0] drawBoxes drew", lineData.length, "boxes")
   }, [pages, currentPage, results, showLines])
 
   useEffect(() => {
