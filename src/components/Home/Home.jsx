@@ -401,10 +401,10 @@ function Home() {
                 onClick={toggleSidebar}
               />
               <button
-                onClick={async () => {
+                onClick={() => {
                   const savedUser = JSON.parse(localStorage.getItem("user"))
                   if (savedUser?.google_id) {
-                    await fetch(import.meta.env.VITE_OCR_URL + "/clear", {
+                      fetch(import.meta.env.VITE_OCR_URL + "/clear", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ user_id: savedUser.google_id }),
