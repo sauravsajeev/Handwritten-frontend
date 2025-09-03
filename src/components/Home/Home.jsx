@@ -210,11 +210,12 @@ function Home() {
       console.log("OCR Response:", data)
       if (data.status === "queued") {
         // Show queue position
-        if (data.queue_position) == 2{
+        if (data.queue_position < 3){
           setOutText("Processing...")
         }
+        else{
         setOutText(`Waiting in queue: ${data.queue_position}`)
-
+        }
         // Wait 3 seconds and retry
         await new Promise((resolve) => setTimeout(resolve, 3000))
         return pollForResult()
