@@ -327,7 +327,7 @@ function Home() {
 
   const handleMouseMove = (e) => {
     if (!isDrawing || !crop || !croppingEnabled) return
-    const rect = overlayRef.current.getBouoverlayRefndingClientRect()
+    const rect = overlayRef.current.getBoundingClientRect()
     const w = e.clientX - rect.left - crop.x
     const h = e.clientY - rect.top - crop.y
     setCrop({ ...crop, w, h })
