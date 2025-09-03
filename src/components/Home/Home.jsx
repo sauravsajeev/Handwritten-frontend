@@ -330,7 +330,14 @@ function Home() {
     const rect = overlayRef.current.getBoundingClientRect()
     const w = e.clientX - rect.left - crop.x
     const h = e.clientY - rect.top - crop.y
-    setCrop({ ...crop, w, h })
+    const newCrop = { ...crop, w, h }
+    setCrop({newCrop })
+    const ctx = overlayRef.current.getContext("2d")
+    ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height)
+
+    ctx.strokeStyle = "#646cff"   // ✅ rectangle color
+    ctx.lineWidth = 2
+    ctx.strokeRect(newCrop.x, newCrop.y, newCrop.w, newCrop.h)
   }
 
   const handleMouseUp = () => setIsDrawing(false)
