@@ -404,11 +404,11 @@ function Home() {
                 onClick={() => {
                   const savedUser = JSON.parse(localStorage.getItem("user"))
                   if (savedUser?.google_id) {
-                      fetch(import.meta.env.VITE_OCR_URL + "/clear", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ user_id: savedUser.google_id }),
-                    })
+                     const blob = new Blob(
+                    [JSON.stringify({ user_id: savedUser.google_id })],
+                    { type: "application/json" }
+                    )
+                      navigator.sendBeacon(import.meta.env.VITE_OCR_URL + "/clear", blob)
                   }
                   localStorage.removeItem("user") // clear storage
                   setUser(null)
