@@ -1,7 +1,7 @@
 "use client"
 
 // src/components/Home.js
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useNavigate } from "react-router-dom" // Using React Router instead of Next.js router
 import "./Home.css"
 import { io } from "socket.io-client"
@@ -198,6 +198,7 @@ function Home() {
       const apiRes = await fetch(import.meta.env.VITE_OCR_URL + "/convert", {
         method: "POST",
         body: form,
+        cache: "no-store",
       })
       if (!apiRes.ok) {
         // Optional: log status for diagnostics
@@ -235,11 +236,18 @@ function Home() {
   }
 
   // Decide which image to display
-  const currentImageSrc =
-    imgSrc ?? (pages.length > 0 ? import.meta.env.VITE_OCR_URL + pages[currentPage].preview_url : null)
+  const [imgReloadCount, setImgReloadCount] = useState(0)
+  const currentImageSrc = useMemo(() => {
+    const base = imgSrc ?? (pages.length > 0 ? import.meta.env.VITE_OCR_URL + pages[currentPage].preview_url : null)
+    if (!base) return null
+    // Don't add cache buster for local data/blob URLs
+    if (base.startsWith("data:") || base.startsWith("blob:")) return base
+    const sep = base.includes("?") ? "&" : "?"
+    return `${base}${sep}v=${imgReloadCount}`
+  }, [imgSrc, pages, currentPage, imgReloadCount])
 
   // Draw bounding boxes for lines
-   const drawBoxes = useCallback(() => {
+  const drawBoxes = useCallback(() => {
     const img = imgRef.current
     const canvas = canvasRef.current
     if (!img || !canvas) return
@@ -280,7 +288,7 @@ function Home() {
   useEffect(() => {
     drawBoxes()
   }, [drawBoxes])
-  
+
   //saves User Logins
   useEffect(() => {
     const savedUser = localStorage.getItem("user")
@@ -467,7 +475,7 @@ function Home() {
                   <label className="inline-flex items-center gap-2 cursor-pointer select-none" style={{ marginTop: 2 }}>
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border border-border accent-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-4 w-4 rounded border border-border accent-blue-600 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                       checked={showHandwritten}
                       onChange={(e) => setShowHandwritten(e.target.checked)}
                     />
@@ -529,9 +537,20 @@ function Home() {
                         src={
                           currentImageSrc || "/placeholder.svg?height=400&width=400&query=ocr%20preview%20placeholder"
                         }
-              alt="preview"
-              style={{ width: 400, display: "block" }}
-              onLoad={drawBoxes}
+                        alt="preview"
+                        width={400}
+                        height={400}
+                        style={{ width: 400, display: "block" }}
+                        crossOrigin="anonymous"
+                        loading="eager"
+                        decoding="async"
+                        referrerPolicy="no-referrer"
+                        onLoad={drawBoxes}
+                        onError={() => {
+                          console.warn("[v0] Preview failed to load, retrying with cache-buster...", currentImageSrc)
+                          setImgReloadCount((n) => n + 1)
+                        }}
+                        key={currentImageSrc}
                       />
                       {/* Boxes canvas overlay */}
                       <canvas
@@ -574,7 +593,7 @@ function Home() {
                     >
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border border-border accent-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="h-4 w-4 rounded border border-border accent-blue-600 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                         checked={showLines}
                         onChange={(e) => setShowLines(e.target.checked)}
                       />
@@ -616,7 +635,7 @@ function Home() {
           </div>
         </div>
       )}
-       {errorOpen && (
+      {errorOpen && (
         <div
           role="alertdialog"
           aria-modal="true"
