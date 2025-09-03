@@ -171,7 +171,7 @@ function Home() {
   const handleRecognize = async () => {
     if (imgSrc && croppingEnabled && !confirmedCrop) return
     setLoading(true)
-    setOutText("Processing...")
+    setOutText("Senting to Server...")
     setHasRecognized(true)
     try {
       const form = new FormData()
@@ -194,8 +194,8 @@ function Home() {
       } else {
         form.append("handwritten", "false")
       }
-
-      const apiRes = await fetch(import.meta.env.VITE_OCR_URL + "/convert", {
+      const pollForResult = async () => {
+      const apiRes  = await fetch(import.meta.env.VITE_OCR_URL + "/convert", {
         method: "POST",
         body: form,
         cache: "no-store",
@@ -208,6 +208,18 @@ function Home() {
       }
       const data = await apiRes.json()
       console.log("OCR Response:", data)
+      if (data.status === "queued") {
+        // Show queue position
+        if (data.queue_position) == 2{
+          setOutText("Processing...")
+        }
+        setOutText(`Waiting in queue: ${data.queue_position}`)
+
+        // Wait 3 seconds and retry
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+        return pollForResult()
+      }
+      if (data.status === "done") {
       if (data.pages) {
         // Multi-page PDF
         setPages(data.pages)
@@ -226,6 +238,9 @@ function Home() {
         const sentences = data?.results?.sentences || []
         setOutText(sentences.length ? sentences.map((s) => s.corrected_text).join("\n") : "No Text Found")
       }
+    }
+  }
+   await pollForResult()
     } catch (err) {
       console.error(err)
       setOutText("")
