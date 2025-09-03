@@ -222,7 +222,7 @@ function Home() {
         // Single image or single-page PDF
         setPages([])
         setResults(data)
-        if (data.preview_url) setImgSrc(import.meta.env.VITE_OCR_URL + data.preview_url)
+        //if (data.preview_url) setImgSrc(import.meta.env.VITE_OCR_URL + data.preview_url)
         const sentences = data?.results?.sentences || []
         setOutText(sentences.length ? sentences.map((s) => s.corrected_text).join("\n") : "No Text Found")
       }
