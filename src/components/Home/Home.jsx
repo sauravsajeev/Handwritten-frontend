@@ -34,6 +34,9 @@ function Home() {
   // file status ("Uploaded" or "File changed")
   const [fileStatus, setFileStatus] = useState("no file chosen")
 
+  const [errorOpen, setErrorOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
+
   const imgRef = useRef(null)
   const overlayRef = useRef(null)
   const canvasRef = useRef(null)
@@ -55,6 +58,8 @@ function Home() {
     setCroppingEnabled(false)
     setLoading(false)
     setFileStatus("")
+    setErrorOpen(false)
+    setErrorMessage("")
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -159,7 +164,10 @@ function Home() {
     setCroppingEnabled(false)
     setCrop(null)
   }
-
+  const showBackendBusy = useCallback(() => {
+    setErrorMessage("Backend Server is busy try later")
+    setErrorOpen(true)
+  }, [])
   const handleRecognize = async () => {
     if (imgSrc && croppingEnabled && !confirmedCrop) return
     setLoading(true)
@@ -191,7 +199,12 @@ function Home() {
         method: "POST",
         body: form,
       })
-
+      if (!apiRes.ok) {
+        // Optional: log status for diagnostics
+        console.warn("[v0] OCR backend returned non-OK status:", apiRes.status)
+        showBackendBusy()
+        throw new Error(`Backend unavailable (status ${apiRes.status})`)
+      }
       const data = await apiRes.json()
       console.log("OCR Response:", data)
       if (data.pages) {
@@ -214,7 +227,8 @@ function Home() {
       }
     } catch (err) {
       console.error(err)
-      setOutText("Error: " + err.message)
+      //setOutText("Error: " + err.message)
+      showBackendBusy()
     } finally {
       setLoading(false)
     }
@@ -598,6 +612,58 @@ function Home() {
                 </div>
                 {imgSrc && croppingEnabled && <p>Left click & drag through the image to select</p>}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+       {errorOpen && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="backend-busy-title"
+          aria-describedby="backend-busy-desc"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => setErrorOpen(false)}
+        >
+          <div
+            style={{
+              background: "#1f1f1f",
+              color: "white",
+              border: "1px solid #444",
+              borderRadius: 8,
+              width: "min(90vw, 420px)",
+              padding: 16,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 id="backend-busy-title" style={{ marginTop: 0, marginBottom: 8 }}>
+              Error
+            </h4>
+            <p id="backend-busy-desc" style={{ margin: 0 }}>
+              {errorMessage || "Backend Server is busy try later"}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+              <button
+                onClick={() => setErrorOpen(false)}
+                style={{
+                  padding: "8px 12px",
+                  background: "#646cff",
+                  color: "white",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
