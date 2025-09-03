@@ -227,7 +227,7 @@ function Home() {
       }
     } catch (err) {
       console.error(err)
-      //setOutText("Error: " + err.message)
+      setOutText("")
       showBackendBusy()
     } finally {
       setLoading(false)
